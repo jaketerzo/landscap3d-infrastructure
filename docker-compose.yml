@@ -1,0 +1,96 @@
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: landscap3d-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: landscap3d-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: landscap3d
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: landscap3d
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: landscap3d-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  api:
+    build: ../code/landscap3d-api
+    container_name: landscap3d-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://landscap3d:${POSTGRES_PASSWORD}@postgres:5432/landscap3d
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${TAILSCALE_HOST}:8443
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_USE_HTTPS: "true"
+      MINIO_BUCKET_SCANS: scans
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      MAX_PHOTOS_PER_SCAN: "300"
+      PRESIGNED_URL_EXPIRY_SECONDS: "3600"
+    depends_on:
+      - minio
+      - postgres
+      - redis
+    expose:
+      - "8000"
+
+  worker:
+    build: ../code/landscap3d-worker
+    container_name: landscap3d-worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql+psycopg://landscap3d:${POSTGRES_PASSWORD}@postgres:5432/landscap3d
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${TAILSCALE_HOST}:8443
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_USE_HTTPS: "true"
+      MINIO_BUCKET_SCANS: scans
+    depends_on:
+      - redis
+      - postgres
+      - minio
+
+  nginx:
+    image: nginx:alpine
+    container_name: landscap3d-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - minio
+      - postgres
+      - redis
+    restart: unless-stopped
+
+volumes:
+  minio_data:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# Environment / secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Backup runtime state — host-only, not source-of-truth
+backups/dumps/
+backups/logs/
+backups/LAST_GOOD
+backups/ERROR
+backups/.staging-*.dump
+backups/.lock.d/
+
+# launchd stdio (if any leak from a misconfigured plist)
+launchd.out
+launchd.err
+
+# Per-user Claude Code session state
+.claude/
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
